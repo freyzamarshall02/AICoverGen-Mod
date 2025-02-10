@@ -1,6 +1,6 @@
 deemix
 fairseq==0.12.2
-faiss-cpu
+faiss-gpu
 ffmpeg-python>=0.2.0
 # gradio==3.39.0
 gradio
@@ -17,7 +17,7 @@ Requests
 scipy>=1.13.0,<2.0.0
 soundfile==0.12.1
 --find-links https://download.pytorch.org/whl/torch_stable.html
-torch==2.0.1+cu118
+torch
 torchcrepe==0.0.23
 tqdm==4.65.0
 yt_dlp
