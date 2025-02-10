@@ -1,6 +1,6 @@
 deemix
 fairseq==0.12.2
-faiss-gpu
+faiss-cpu
 ffmpeg-python>=0.2.0
 # gradio==3.39.0
 gradio
