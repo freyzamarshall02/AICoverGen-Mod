@@ -96,7 +96,9 @@ class Config:
 
 
 def load_hubert(device, is_half, model_path):
-    models, saved_cfg, task = checkpoint_utils.load_model_ensemble_and_task([model_path], suffix='', )
+    with torch.serialization.safe_globals([Dictionary]):
+        models, saved_cfg, task = checkpoint_utils.load_model_ensemble_and_task([model_path], suffix='', )
+
     hubert = models[0]
     hubert = hubert.to(device)
 
