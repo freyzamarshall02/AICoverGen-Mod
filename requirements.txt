@@ -12,6 +12,7 @@ praat-parselmouth>=0.4.2
 pedalboard==0.7.7
 pydub==0.25.1
 pyworld==0.3.4
+setuptools
 Requests
 # scipy==1.11.1
 scipy>=1.13.0,<2.0.0
