@@ -44,7 +44,7 @@ Then follow the instructions in the notebook to run the webui.
 
 For those without a powerful enough NVIDIA GPU, you may try AICoverGen out using Google Colab.
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/SociallyIneptWeeb/AICoverGen/blob/main/AICoverGen_colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/freyzamarshall02/AICoverGen-Mod/blob/main/AICoverGenMod_WebUI.ipynb)
 
 For those who want to run this locally, follow the setup guide below.
 
