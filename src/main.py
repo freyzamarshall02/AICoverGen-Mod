@@ -30,33 +30,48 @@ output_dir = os.path.join(BASE_DIR, 'song_output')
 
 def get_youtube_video_id(url, ignore_playlist=True):
     """
+    Extracts video ID from YouTube, YouTube Shorts, Spotify, and SoundCloud URLs.
     Examples:
+    YouTube:
     http://youtu.be/SA2iWivDJiE
     http://www.youtube.com/watch?v=_oPAwA_Udwc&feature=feedu
     http://www.youtube.com/embed/SA2iWivDJiE
     http://www.youtube.com/v/SA2iWivDJiE?version=3&amp;hl=en_US
+    
+    YouTube Shorts:
+    https://www.youtube.com/shorts/abc123xyz
+    Spotify:
+    https://open.spotify.com/track/5nTtCOCds6I0PHMNtqelas
+    SoundCloud:
+    https://soundcloud.com/artist/trackname
     """
+    
     query = urlparse(url)
-    if query.hostname == 'youtu.be':
-        if query.path[1:] == 'watch':
-            return query.query[2:]
-        return query.path[1:]
+    if query.hostname in {'youtu.be', 'www.youtube.com', 'youtube.com', 'music.youtube.com'}:
+        # YouTube and YouTube Shorts
+        if query.hostname == 'youtu.be':
+            return query.path[1:]
 
-    if query.hostname in {'www.youtube.com', 'youtube.com', 'music.youtube.com'}:
-        if not ignore_playlist:
-            # use case: get playlist id not current video in playlist
-            with suppress(KeyError):
-                return parse_qs(query.query)['list'][0]
         if query.path == '/watch':
-            return parse_qs(query.query)['v'][0]
-        if query.path[:7] == '/watch/':
-            return query.path.split('/')[1]
-        if query.path[:7] == '/embed/':
+            return parse_qs(query.query).get('v', [None])[0]
+        if query.path.startswith('/embed/'):
             return query.path.split('/')[2]
-        if query.path[:3] == '/v/':
+        if query.path.startswith('/v/'):
+            return query.path.split('/')[2]
+        if query.path.startswith('/shorts/'):
             return query.path.split('/')[2]
 
-    # returns None for invalid YouTube url
+    elif query.hostname == 'open.spotify.com':
+        # Spotify
+        if query.path.startswith('/track/'):
+            return query.path.split('/')[2]
+
+    elif query.hostname == 'soundcloud.com':
+        # SoundCloud
+        # Example SoundCloud URL: https://soundcloud.com/artist/trackname
+        return query.path[1:]  # returns "artist/trackname"
+
+    # Return None for invalid or unsupported URLs
     return None
 
 
