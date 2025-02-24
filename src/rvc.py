@@ -2,6 +2,7 @@ from multiprocessing import cpu_count
 from pathlib import Path
 
 import torch
+from fairseq.data.dictionary import Dictionary
 from fairseq import checkpoint_utils
 from scipy.io import wavfile
 
@@ -94,11 +95,14 @@ class Config:
 
         return x_pad, x_query, x_center, x_max
 
+torch.serialization.add_safe_globals([Dictionary])  # Allowlist Fairseq's Dictionary class
 
 def load_hubert(device, is_half, model_path):
-    models, saved_cfg, task = checkpoint_utils.load_model_ensemble_and_task([model_path], suffix='', )
-    hubert = models[0]
-    hubert = hubert.to(device)
+    models, saved_cfg, task = checkpoint_utils.load_model_ensemble_and_task(
+        [model_path], suffix='', arg_overrides={"weights_only": True}  # Keep weights-only safe loading
+    )
+
+    hubert = models[0].to(device)
 
     if is_half:
         hubert = hubert.half()
@@ -107,7 +111,6 @@ def load_hubert(device, is_half, model_path):
 
     hubert.eval()
     return hubert
-
 
 def get_vc(device, is_half, config, model_path):
     cpt = torch.load(model_path, map_location='cpu')
