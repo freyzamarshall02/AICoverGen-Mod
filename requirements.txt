@@ -1,5 +1,5 @@
 deemix
-fairseq
+git+https://github.com/liyaodev/fairseq.git
 faiss-cpu
 ffmpeg-python>=0.2.0
 # gradio==3.39.0
