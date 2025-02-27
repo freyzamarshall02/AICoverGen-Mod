@@ -1,4 +1,5 @@
 deemix
+gdown
 git+https://github.com/liyaodev/fairseq.git
 faiss-cpu
 ffmpeg-python>=0.2.0
@@ -25,4 +26,3 @@ tqdm==4.65.0
 yt_dlp
 sox==1.4.1
 audio-separator[gpu]==0.17.5
-gdown
