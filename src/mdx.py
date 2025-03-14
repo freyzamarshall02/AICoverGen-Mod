@@ -302,7 +302,7 @@ def run_roformer(model_params, output_dir, model_name, filename, exclude_main=Fa
     roformer_overlap = 4
     roformer_segment_size = 256
     print(f"output_dir: {output_dir}")
-    prompt = f'audio-separator "{filename}" --model_filename {model_name} --output_dir="{output_dir}" --output_format={roformer_output_format} --normalization=0.9 --mdxc_overlap={roformer_overlap} --mdxc_segment_size={roformer_segment_size}'
+    prompt = f'/content/Hina_RVC/venv/bin/audio-separator "{filename}" --model_filename {model_name} --output_dir="{output_dir}" --output_format={roformer_output_format} --normalization=0.9 --mdxc_overlap={roformer_overlap} --mdxc_segment_size={roformer_segment_size}'
     os.system(prompt)
 
     vocals_file = f"{base_name}_Vocals.wav"
