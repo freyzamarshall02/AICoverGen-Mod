@@ -14,7 +14,7 @@ pyworld
 Requests
 scipy
 soundfile
-torch=
+torch
 torchcrepe
 tqdm
 yt_dlp
