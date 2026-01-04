@@ -20,3 +20,4 @@ tqdm
 yt_dlp
 sox
 audio-separator[gpu]
+gdown
