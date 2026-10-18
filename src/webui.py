@@ -220,6 +220,25 @@ if __name__ == '__main__':
                     show_file_upload_button.click(swap_visibility, outputs=[file_upload_col, yt_link_col, song_input, local_file])
                     show_yt_link_button.click(swap_visibility, outputs=[yt_link_col, file_upload_col, song_input, local_file])
 
+            with gr.Accordion('🍪 YouTube Cookies (optional)', open=False):
+                gr.Markdown(
+                    'If YouTube blocks the download, provide cookies exported from your browser '
+                    '(**YouTube tab must be open and logged in**). '
+                    'Use a browser extension such as *Get cookies.txt LOCALLY* or *EditThisCookie* to export them as **JSON**, '
+                    'then either paste the JSON text below **or** upload the file.'
+                )
+                with gr.Row():
+                    cookies_str = gr.Textbox(
+                        label='Paste cookie JSON',
+                        placeholder='Paste your exported cookie JSON here…',
+                        lines=4,
+                        max_lines=10,
+                    )
+                    cookies_file = gr.File(
+                        label='Upload cookie JSON file',
+                        file_types=['.json', '.txt'],
+                    )
+
             with gr.Accordion('Voice conversion options', open=False):
                 with gr.Row():
                     index_rate = gr.Slider(0, 1, value=0.5, label='Index Rate', info="Controls how much of the AI voice's accent to keep in the vocals")
@@ -262,7 +281,7 @@ if __name__ == '__main__':
                                inputs=[song_input, rvc_model, pitch, keep_files, is_webui, main_gain, backup_gain,
                                        inst_gain, index_rate, filter_radius, rms_mix_rate, f0_method, crepe_hop_length,
                                        protect, pitch_all, reverb_rm_size, reverb_wet, reverb_dry, reverb_damping,
-                                       output_format],
+                                       output_format, cookies_str, cookies_file],
                                outputs=[ai_cover, ai_backing])
             clear_btn.click(lambda: [0, 0, 0, 0, 0.5, 3, 0.25, 0.33, 'rmvpe', 128, 0, 0.15, 0.2, 0.8, 0.7, 'mp3', None],
                             outputs=[pitch, main_gain, backup_gain, inst_gain, index_rate, filter_radius, rms_mix_rate,

@@ -77,7 +77,56 @@ def get_youtube_video_id(url, ignore_playlist=True):
     return None
 
 
-def yt_download(link):
+def yt_download(link, cookies_str=None, cookies_file=None):
+    """
+    Download audio from a YouTube link.
+    Supports passing cookies to bypass bot-detection / age-restrictions.
+
+    cookies_str  : raw browser-exported JSON string  (pasted from UI)
+    cookies_file : path to a JSON cookie file        (uploaded from UI)
+    """
+    import json as _json
+    import tempfile
+
+    cookiefile_path = None
+    _tmp_cookie_file = None
+
+    # Resolve cookie source: file takes priority over pasted text
+    raw_json = None
+    if cookies_file and os.path.exists(cookies_file):
+        with open(cookies_file, 'r', encoding='utf-8') as f:
+            raw_json = f.read()
+    elif cookies_str and cookies_str.strip():
+        raw_json = cookies_str.strip()
+
+    if raw_json:
+        try:
+            data = _json.loads(raw_json)
+            # Support both bare list and {"cookies": [...]} wrapper
+            cookies_list = data if isinstance(data, list) else data.get('cookies', [])
+
+            # Write Netscape cookie file that yt-dlp understands
+            _tmp_cookie_file = tempfile.NamedTemporaryFile(
+                mode='w', suffix='.txt', delete=False, encoding='utf-8'
+            )
+            _tmp_cookie_file.write('# Netscape HTTP Cookie File\n')
+            for c in cookies_list:
+                domain   = c.get('domain', '')
+                flag     = 'TRUE' if domain.startswith('.') else 'FALSE'
+                path     = c.get('path', '/')
+                secure   = 'TRUE' if c.get('secure', False) else 'FALSE'
+                expires  = str(int(c.get('expirationDate', 0) or 0))
+                name     = c.get('name', '')
+                value    = c.get('value', '')
+                _tmp_cookie_file.write(
+                    f'{domain}\t{flag}\t{path}\t{secure}\t{expires}\t{name}\t{value}\n'
+                )
+            _tmp_cookie_file.flush()
+            _tmp_cookie_file.close()
+            cookiefile_path = _tmp_cookie_file.name
+        except Exception as e:
+            print(f'[!] Cookie parsing failed, downloading without cookies: {e}')
+
     ydl_opts = {
         'format': 'bestaudio',
         'outtmpl': '%(title)s',
@@ -88,9 +137,17 @@ def yt_download(link):
         'extractaudio': True,
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3'}],
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        result = ydl.extract_info(link, download=True)
-        download_path = ydl.prepare_filename(result, outtmpl='%(title)s.mp3')
+    if cookiefile_path:
+        ydl_opts['cookiefile'] = cookiefile_path
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            result = ydl.extract_info(link, download=True)
+            download_path = ydl.prepare_filename(result, outtmpl='%(title)s.mp3')
+    finally:
+        # Clean up temp cookie file
+        if _tmp_cookie_file and os.path.exists(_tmp_cookie_file.name):
+            os.remove(_tmp_cookie_file.name)
 
     return download_path
 
@@ -195,12 +252,13 @@ def display_progress(message, percent, is_webui, progress=None):
         print(message)
 
 
-def preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress=None):
+def preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress=None,
+                    cookies_str=None, cookies_file=None):
     keep_orig = False
     if input_type == 'yt':
         display_progress('[~] Downloading song...', 0, is_webui, progress)
         song_link = song_input.split('&')[0]
-        orig_song_path = yt_download(song_link)
+        orig_song_path = yt_download(song_link, cookies_str=cookies_str, cookies_file=cookies_file)
     elif input_type == 'local':
         orig_song_path = song_input
         keep_orig = True
@@ -269,6 +327,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
                         is_webui=0, main_gain=0, backup_gain=0, inst_gain=0, index_rate=0.5, filter_radius=3,
                         rms_mix_rate=0.25, f0_method='rmvpe', crepe_hop_length=128, protect=0.33, pitch_change_all=0,
                         reverb_rm_size=0.15, reverb_wet=0.2, reverb_dry=0.8, reverb_damping=0.7, output_format='mp3',
+                        cookies_str=None, cookies_file=None,
                         progress=gr.Progress()):
     try:
         if not song_input or not voice_model:
@@ -302,7 +361,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
 
         if not os.path.exists(song_dir):
             os.makedirs(song_dir)
-            orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress)
+            orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress, cookies_str=cookies_str, cookies_file=cookies_file)
 
         else:
             vocals_path, main_vocals_path = None, None
@@ -310,7 +369,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
 
             # if any of the audio files aren't available or keep intermediate files, rerun preprocess
             if any(path is None for path in paths) or keep_files:
-                orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress)
+                orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress, cookies_str=cookies_str, cookies_file=cookies_file)
             else:
                 orig_song_path, instrumentals_path, main_vocals_dereverb_path, backup_vocals_path = paths
 
