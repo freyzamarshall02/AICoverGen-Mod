@@ -5,21 +5,23 @@ import json
 import os
 import shlex
 import subprocess
-from contextlib import suppress
 from urllib.parse import urlparse, parse_qs
 
-import gradio as gr
+try:
+    import gradio as gr
+    _GRADIO_AVAILABLE = True
+except ImportError:
+    gr = None
+    _GRADIO_AVAILABLE = False
 import librosa
 import numpy as np
-import soundfile as sf
-import sox
 import yt_dlp
 from pedalboard import Pedalboard, Reverb, Compressor, HighpassFilter
 from pedalboard.io import AudioFile
 from pydub import AudioSegment
 
 from mdx import run_mdx, run_roformer
-from rvc import Config, load_hubert, get_vc, rvc_infer
+from rvc_module import Config, load_hubert, get_vc, rvc_infer
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -94,7 +96,7 @@ def yt_download(link):
 
 
 def raise_exception(error_msg, is_webui):
-    if is_webui:
+    if is_webui and _GRADIO_AVAILABLE:
         raise gr.Error(error_msg)
     else:
         raise Exception(error_msg)
@@ -151,13 +153,28 @@ def convert_to_stereo(audio_path):
 
 
 def pitch_shift(audio_path, pitch_change):
+    """
+    Shift the pitch of an audio file by a given number of semitones.
+    Uses ffmpeg's asetrate+aresample filter chain (no sox dependency).
+
+    Args:
+        audio_path (str): Path to the input WAV file.
+        pitch_change (int|float): Pitch shift in semitones.
+
+    Returns:
+        str: Path to the pitch-shifted output WAV file.
+    """
     output_path = f'{os.path.splitext(audio_path)[0]}_p{pitch_change}.wav'
     if not os.path.exists(output_path):
-        y, sr = sf.read(audio_path)
-        tfm = sox.Transformer()
-        tfm.pitch(pitch_change)
-        y_shifted = tfm.build_array(input_array=y, sample_rate_in=sr)
-        sf.write(output_path, y_shifted, sr)
+        # asetrate adjusts playback speed to shift pitch, aresample restores SR
+        shifted_rate = 44100 * (2 ** (pitch_change / 12))
+        cmd = [
+            'ffmpeg', '-y', '-loglevel', 'error',
+            '-i', audio_path,
+            '-af', f'asetrate={shifted_rate:.4f},aresample=44100',
+            output_path
+        ]
+        subprocess.run(cmd, check=True)
 
     return output_path
 
@@ -209,10 +226,10 @@ def voice_change(voice_model, vocals_path, output_path, pitch_change, f0_method,
     rvc_model_path, rvc_index_path = get_rvc_model(voice_model, is_webui)
     device = 'cuda:0'
     config = Config(device, True)
-    hubert_model = load_hubert(device, config.is_half, os.path.join(rvc_models_dir, 'hubert_base.pt'))
+    hubert_model = load_hubert(device, config.is_half, embedder_model='contentvec')
     cpt, version, net_g, tgt_sr, vc = get_vc(device, config.is_half, config, rvc_model_path)
 
-    # convert main vocals
+    # convert vocals
     rvc_infer(rvc_index_path, index_rate, vocals_path, output_path, pitch_change, f0_method, cpt, version, net_g, filter_radius, tgt_sr, rms_mix_rate, protect, crepe_hop_length, vc, hubert_model)
     del hubert_model, cpt
     gc.collect()
@@ -252,7 +269,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
                         is_webui=0, main_gain=0, backup_gain=0, inst_gain=0, index_rate=0.5, filter_radius=3,
                         rms_mix_rate=0.25, f0_method='rmvpe', crepe_hop_length=128, protect=0.33, pitch_change_all=0,
                         reverb_rm_size=0.15, reverb_wet=0.2, reverb_dry=0.8, reverb_damping=0.7, output_format='mp3',
-                        progress=gr.Progress()):
+                        progress=None):
     try:
         if not song_input or not voice_model:
             raise_exception('Ensure that the song input field and voice model field is filled.', is_webui)
@@ -298,8 +315,8 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
                 orig_song_path, instrumentals_path, main_vocals_dereverb_path, backup_vocals_path = paths
 
         pitch_change = pitch_change + pitch_change_all
-        ai_vocals_path = os.path.join(song_dir, f'{os.path.splitext(os.path.basename(orig_song_path))[0]}_lead_{voice_model}_p{pitch_change}_i{index_rate}_fr{filter_radius}_rms{rms_mix_rate}_pro{protect}_{f0_method}{"" if f0_method != "mangio-crepe" else f"_{crepe_hop_length}"}.wav')
-        ai_backing_path = os.path.join(song_dir, f'{os.path.splitext(os.path.basename(orig_song_path))[0]}_backing_{voice_model}_p{pitch_change}_i{index_rate}_fr{filter_radius}_rms{rms_mix_rate}_pro{protect}_{f0_method}{"" if f0_method != "mangio-crepe" else f"_{crepe_hop_length}"}.wav')
+        ai_vocals_path = os.path.join(song_dir, f'{os.path.splitext(os.path.basename(orig_song_path))[0]}_lead_{voice_model}_p{pitch_change}_i{index_rate}_fr{filter_radius}_rms{rms_mix_rate}_pro{protect}_{f0_method}{"" if f0_method != "crepe" else f"_{crepe_hop_length}"}.wav')
+        ai_backing_path = os.path.join(song_dir, f'{os.path.splitext(os.path.basename(orig_song_path))[0]}_backing_{voice_model}_p{pitch_change}_i{index_rate}_fr{filter_radius}_rms{rms_mix_rate}_pro{protect}_{f0_method}{"" if f0_method != "crepe" else f"_{crepe_hop_length}"}.wav')
 
         ai_cover_path = os.path.join(song_dir, f'{os.path.splitext(os.path.basename(orig_song_path))[0]} ({voice_model} Ver).{output_format}')
         ai_cover_backing_path = os.path.join(song_dir, f'{os.path.splitext(os.path.basename(orig_song_path))[0]} ({voice_model} Ver With Backing).{output_format}')
@@ -348,7 +365,7 @@ if __name__ == '__main__':
     parser.add_argument('-ir', '--index-rate', type=float, default=0.5, help='A decimal number e.g. 0.5, used to reduce/resolve the timbre leakage problem. If set to 1, more biased towards the timbre quality of the training dataset')
     parser.add_argument('-fr', '--filter-radius', type=int, default=3, help='A number between 0 and 7. If >=3: apply median filtering to the harvested pitch results. The value represents the filter radius and can reduce breathiness.')
     parser.add_argument('-rms', '--rms-mix-rate', type=float, default=0.25, help="A decimal number e.g. 0.25. Control how much to use the original vocal's loudness (0) or a fixed loudness (1).")
-    parser.add_argument('-palgo', '--pitch-detection-algo', type=str, default='rmvpe', help='Best option is rmvpe (clarity in vocals), then mangio-crepe (smoother vocals).')
+    parser.add_argument('-palgo', '--pitch-detection-algo', type=str, default='rmvpe', help='Pitch detection algorithm: rmvpe (best clarity), fcpe, crepe, swift.')
     parser.add_argument('-hop', '--crepe-hop-length', type=int, default=128, help='If pitch detection algo is mangio-crepe, controls how often it checks for pitch changes in milliseconds. The higher the value, the faster the conversion and less risk of voice cracks, but there is less pitch accuracy. Recommended: 128.')
     parser.add_argument('-pro', '--protect', type=float, default=0.33, help='A decimal number e.g. 0.33. Protect voiceless consonants and breath sounds to prevent artifacts such as tearing in electronic music. Set to 0.5 to disable. Decrease the value to increase protection, but it may reduce indexing accuracy.')
     parser.add_argument('-mv', '--main-vol', type=int, default=0, help='Volume change for AI main vocals in decibels. Use -3 to decrease by 3 decibels and 3 to increase by 3 decibels')

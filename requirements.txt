@@ -1,23 +1,34 @@
-deemix
-git+https://github.com/liyaodev/fairseq.git
-faiss-cpu
-ffmpeg-python
-gradio
-lib
-librosa
-numpy
-onnxruntime_gpu
+# Core audio/ML
+numpy==2.4.6
+torchcrepe==0.0.24
+torchfcpe==0.0.4
+faiss-cpu==1.14.3
+librosa==0.11.0
+soundfile==0.14.0
+scipy==1.18.0
+soxr==1.1.0
+
+# Voice conversion dependencies
+transformers==5.13.1
+einops==0.8.2
 praat-parselmouth
+pyworld
+
+# Source separation
+onnxruntime>=1.17.0
+audio-separator[gpu]
+
+# Audio post-processing
 pedalboard
 pydub
-pyworld
-Requests
-scipy
-soundfile
-torch
-torchcrepe
-tqdm
+ffmpeg-python
+
+# Utilities
+gradio==6.20.0
 yt_dlp
-sox
-audio-separator[gpu]
 gdown
+requests
+tqdm
+stftpitchshift==2.0
+
+# NOTE: torch==2.11.0+cu130 is pre-installed in Colab — do not reinstall

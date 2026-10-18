@@ -19,13 +19,13 @@ output_dir = os.path.join(BASE_DIR, 'song_output')
 
 def get_current_models(models_dir):
     models_list = os.listdir(models_dir)
-    items_to_remove = ['hubert_base.pt', 'MODELS.txt', 'public_models.json', 'rmvpe.pt']
+    items_to_remove = ['MODELS.txt', 'public_models.json', 'embedders', 'predictors']
     return [item for item in models_list if item not in items_to_remove]
 
 
 def update_models_list():
     models_l = get_current_models(rvc_models_dir)
-    return gr.Dropdown(choices=models_l)
+    return gr.update(choices=models_l)
 
 
 def load_public_models():
@@ -36,7 +36,7 @@ def load_public_models():
             models_table.append(model)
 
     tags = list(public_models['tags'].keys())
-    return gr.DataFrame.update(value=models_table), gr.CheckboxGroup.update(choices=tags)
+    return gr.update(value=models_table), gr.update(choices=tags)
 
 
 def extract_zip(extraction_folder, zip_name):
@@ -143,11 +143,11 @@ def filter_models(tags, query):
             if query.lower() in model_attributes:
                 models_table.append([model['name'], model['description'], model['credit'], model['url'], model['tags']])
 
-    return gr.DataFrame.update(value=models_table)
+    return gr.update(value=models_table)
 
 
 def pub_dl_autofill(pub_models, event: gr.SelectData):
-    return gr.Text.update(value=pub_models.loc[event.index[0], 'URL']), gr.Text.update(value=pub_models.loc[event.index[0], 'Model Name'])
+    return gr.update(value=pub_models.loc[event.index[0], 'URL']), gr.update(value=pub_models.loc[event.index[0], 'Model Name'])
 
 
 def swap_visibility():
@@ -159,7 +159,7 @@ def process_file_upload(file):
 
 
 def show_hop_slider(pitch_detection_algo):
-    if pitch_detection_algo == 'mangio-crepe':
+    if 'crepe' in pitch_detection_algo:
         return gr.update(visible=True)
     else:
         return gr.update(visible=False)
@@ -213,7 +213,7 @@ if __name__ == '__main__':
                     rms_mix_rate = gr.Slider(0, 1, value=0.25, label='RMS mix rate', info="Control how much to mimic the original vocal's loudness (0) or a fixed loudness (1)")
                     protect = gr.Slider(0, 0.5, value=0.33, label='Protect rate', info='Protect voiceless consonants and breath sounds. Set to 0.5 to disable.')
                     with gr.Column():
-                        f0_method = gr.Dropdown(['rmvpe', 'mangio-crepe'], value='rmvpe', label='Pitch detection algorithm', info='Best option is rmvpe (clarity in vocals), then mangio-crepe (smoother vocals)')
+                        f0_method = gr.Dropdown(['rmvpe', 'fcpe', 'crepe', 'swift'], value='rmvpe', label='Pitch detection algorithm', info='Best option is rmvpe (clarity in vocals), then fcpe or crepe (smoother vocals)')
                         crepe_hop_length = gr.Slider(32, 320, value=128, step=1, visible=False, label='Crepe hop length', info='Lower values leads to longer conversions and higher risk of voice cracks, but better pitch accuracy.')
                         f0_method.change(show_hop_slider, inputs=f0_method, outputs=crepe_hop_length)
                 keep_files = gr.Checkbox(label='Keep intermediate files', info='Keep all audio files generated in the song_output/id directory, e.g. Isolated Vocals/Instrumentals. Leave unchecked to save space')

@@ -12,9 +12,6 @@ import soundfile as sf
 import torch
 from tqdm import tqdm
 
-import re
-import random
-
 warnings.filterwarnings("ignore")
 stem_naming = {'Vocals': 'Instrumental', 'Other': 'Instruments', 'Instrumental': 'Vocals', 'Drums': 'Drumless', 'Bass': 'Bassless'}
 
@@ -69,7 +66,12 @@ class MDX:
 
         # Set the device and the provider (CPU or CUDA)
         self.device = torch.device(f'cuda:{processor}') if processor >= 0 else torch.device('cpu')
-        self.provider = ['CUDAExecutionProvider'] if processor >= 0 else ['CPUExecutionProvider']
+        _available_providers = ort.get_available_providers()
+        self.provider = (
+            ['CUDAExecutionProvider']
+            if processor >= 0 and 'CUDAExecutionProvider' in _available_providers
+            else ['CPUExecutionProvider']
+        )
 
         self.model = params
 
