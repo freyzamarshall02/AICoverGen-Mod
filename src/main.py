@@ -131,11 +131,27 @@ def yt_download(link, cookies_str=None, cookies_file=None):
         'format': 'bestaudio',
         'outtmpl': '%(title)s',
         'nocheckcertificate': True,
-        'ignoreerrors': True,
-        'no_warnings': True,
-        'quiet': True,
+        # Do NOT set ignoreerrors=True — it swallows failures and returns None,
+        # causing a crash in prepare_filename. Let exceptions propagate instead.
+        'no_warnings': False,
+        'quiet': False,
         'extractaudio': True,
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3'}],
+        # Mimic a real browser to reduce bot-detection rejections
+        'http_headers': {
+            'User-Agent': (
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                'AppleWebKit/537.36 (KHTML, like Gecko) '
+                'Chrome/124.0.0.0 Safari/537.36'
+            ),
+        },
+        # Tell the YouTube extractor to skip the "reload page" check
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['web', 'android'],
+                'skip': ['dash', 'hls'],
+            },
+        },
     }
     if cookiefile_path:
         ydl_opts['cookiefile'] = cookiefile_path
@@ -143,6 +159,11 @@ def yt_download(link, cookies_str=None, cookies_file=None):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             result = ydl.extract_info(link, download=True)
+            if result is None:
+                raise Exception(
+                    'yt-dlp returned no result — YouTube may have blocked the request. '
+                    'Try providing fresh cookies from a logged-in YouTube session.'
+                )
             download_path = ydl.prepare_filename(result, outtmpl='%(title)s.mp3')
     finally:
         # Clean up temp cookie file
