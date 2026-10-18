@@ -220,21 +220,35 @@ if __name__ == '__main__':
                     show_file_upload_button.click(swap_visibility, outputs=[file_upload_col, yt_link_col, song_input, local_file])
                     show_yt_link_button.click(swap_visibility, outputs=[yt_link_col, file_upload_col, song_input, local_file])
 
-            with gr.Accordion('🍪 YouTube Cookies (optional — needed on Google Colab)', open=False):
+            with gr.Accordion('🍪 YouTube Cookies & PO Token (needed on Google Colab)', open=False):
                 gr.Markdown(
-                    '### Cookies\n'
-                    'If YouTube blocks the download, provide cookies exported from your browser '
-                    '(**YouTube tab must be open and logged in**). '
-                    'Use *Get cookies.txt LOCALLY* or *EditThisCookie* → export as **JSON**.\n\n'
-                    '### ⚠️ Google Colab users — also need PO Token\n'
-                    'Colab runs on Google\'s own datacenter IPs, which YouTube blocks hardest. '
-                    'Cookies alone may not be enough. You also need a **PO Token** + **Visitor Data**.\n\n'
-                    '**How to get them:** Open YouTube in your browser, open DevTools (`F12`), '
-                    'go to **Console** and paste:\n'
+                    '## 🍪 Step 1 — Export Cookies\n'
+                    'YouTube cookies let yt-dlp act as your logged-in account.\n\n'
+                    '1. Install **[Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)** browser extension\n'
+                    '2. Open **YouTube** and make sure you are **logged in**\n'
+                    '3. Click the extension icon → select **JSON** format → **Export**\n'
+                    '4. Paste the JSON below, or upload the file\n\n'
+                    '---\n\n'
+                    '## 🔑 Step 2 — Get PO Token *(Google Colab users only)*\n'
+                    'Colab runs on Google\'s own datacenter IPs — YouTube blocks these hardest. '
+                    'Cookies alone are **not enough**. You also need a **PO Token**.\n\n'
+                    'On the same YouTube tab, press **F12** → **Console** tab → paste:\n\n'
                     '```js\n'
-                    'JSON.stringify({po_token: yt.config_.VISITOR_DATA, visitor_data: yt.config_.INNERTUBE_CONTEXT_CLIENT_INFO?.visitorData})\n'
+                    'yt.config_.VISITOR_DATA\n'
                     '```\n'
-                    'Or use the [yt-dlp PO Token guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide).'
+                    'Copy the result string → paste it into the **PO Token** field below.\n\n'
+                    '---\n\n'
+                    '## 🗂️ Step 3 — Get Visitor Data *(optional)*\n\n'
+                    'In the same Console, paste:\n\n'
+                    '```js\n'
+                    'yt.config_.INNERTUBE_CONTEXT?.client?.visitorData\n'
+                    '```\n'
+                    'If it returns a string → paste it into **Visitor Data** below.\n'
+                    'If it returns `undefined`, try:\n\n'
+                    '```js\n'
+                    'ytcfg.get("VISITOR_DATA")\n'
+                    '```\n'
+                    'Still `undefined`? → **Leave Visitor Data empty.** PO Token alone is enough.'
                 )
                 with gr.Row():
                     cookies_str = gr.Textbox(
@@ -249,13 +263,13 @@ if __name__ == '__main__':
                     )
                 with gr.Row():
                     po_token = gr.Textbox(
-                        label='PO Token (Colab only)',
-                        placeholder='Paste your po_token here…',
+                        label='PO Token — run: yt.config_.VISITOR_DATA in YouTube console',
+                        placeholder='Paste result of yt.config_.VISITOR_DATA here…',
                         lines=1,
                     )
                     visitor_data = gr.Textbox(
-                        label='Visitor Data (Colab only)',
-                        placeholder='Paste your visitor_data here…',
+                        label='Visitor Data (optional) — run: yt.config_.INNERTUBE_CONTEXT?.client?.visitorData',
+                        placeholder='Paste visitor data here, or leave empty…',
                         lines=1,
                     )
 
