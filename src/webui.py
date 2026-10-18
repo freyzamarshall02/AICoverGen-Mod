@@ -220,12 +220,21 @@ if __name__ == '__main__':
                     show_file_upload_button.click(swap_visibility, outputs=[file_upload_col, yt_link_col, song_input, local_file])
                     show_yt_link_button.click(swap_visibility, outputs=[yt_link_col, file_upload_col, song_input, local_file])
 
-            with gr.Accordion('🍪 YouTube Cookies (optional)', open=False):
+            with gr.Accordion('🍪 YouTube Cookies (optional — needed on Google Colab)', open=False):
                 gr.Markdown(
+                    '### Cookies\n'
                     'If YouTube blocks the download, provide cookies exported from your browser '
                     '(**YouTube tab must be open and logged in**). '
-                    'Use a browser extension such as *Get cookies.txt LOCALLY* or *EditThisCookie* to export them as **JSON**, '
-                    'then either paste the JSON text below **or** upload the file.'
+                    'Use *Get cookies.txt LOCALLY* or *EditThisCookie* → export as **JSON**.\n\n'
+                    '### ⚠️ Google Colab users — also need PO Token\n'
+                    'Colab runs on Google\'s own datacenter IPs, which YouTube blocks hardest. '
+                    'Cookies alone may not be enough. You also need a **PO Token** + **Visitor Data**.\n\n'
+                    '**How to get them:** Open YouTube in your browser, open DevTools (`F12`), '
+                    'go to **Console** and paste:\n'
+                    '```js\n'
+                    'JSON.stringify({po_token: yt.config_.VISITOR_DATA, visitor_data: yt.config_.INNERTUBE_CONTEXT_CLIENT_INFO?.visitorData})\n'
+                    '```\n'
+                    'Or use the [yt-dlp PO Token guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide).'
                 )
                 with gr.Row():
                     cookies_str = gr.Textbox(
@@ -237,6 +246,17 @@ if __name__ == '__main__':
                     cookies_file = gr.File(
                         label='Upload cookie JSON file',
                         file_types=['.json', '.txt'],
+                    )
+                with gr.Row():
+                    po_token = gr.Textbox(
+                        label='PO Token (Colab only)',
+                        placeholder='Paste your po_token here…',
+                        lines=1,
+                    )
+                    visitor_data = gr.Textbox(
+                        label='Visitor Data (Colab only)',
+                        placeholder='Paste your visitor_data here…',
+                        lines=1,
                     )
 
             with gr.Accordion('Voice conversion options', open=False):
@@ -281,7 +301,7 @@ if __name__ == '__main__':
                                inputs=[song_input, rvc_model, pitch, keep_files, is_webui, main_gain, backup_gain,
                                        inst_gain, index_rate, filter_radius, rms_mix_rate, f0_method, crepe_hop_length,
                                        protect, pitch_all, reverb_rm_size, reverb_wet, reverb_dry, reverb_damping,
-                                       output_format, cookies_str, cookies_file],
+                                       output_format, cookies_str, cookies_file, po_token, visitor_data],
                                outputs=[ai_cover, ai_backing])
             clear_btn.click(lambda: [0, 0, 0, 0, 0.5, 3, 0.25, 0.33, 'rmvpe', 128, 0, 0.15, 0.2, 0.8, 0.7, 'mp3', None],
                             outputs=[pitch, main_gain, backup_gain, inst_gain, index_rate, filter_radius, rms_mix_rate,

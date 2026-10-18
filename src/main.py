@@ -77,13 +77,15 @@ def get_youtube_video_id(url, ignore_playlist=True):
     return None
 
 
-def yt_download(link, cookies_str=None, cookies_file=None):
+def yt_download(link, cookies_str=None, cookies_file=None, po_token=None, visitor_data=None):
     """
     Download audio from a YouTube link.
     Supports passing cookies to bypass bot-detection / age-restrictions.
 
-    cookies_str  : raw browser-exported JSON string  (pasted from UI)
-    cookies_file : path to a JSON cookie file        (uploaded from UI)
+    cookies_str   : raw browser-exported JSON string  (pasted from UI)
+    cookies_file  : path to a JSON cookie file        (uploaded from UI)
+    po_token      : Proof-of-Origin token from browser (needed on Colab/datacenters)
+    visitor_data  : Visitor data string paired with po_token
     """
     import json as _json
     import tempfile
@@ -127,6 +129,14 @@ def yt_download(link, cookies_str=None, cookies_file=None):
         except Exception as e:
             print(f'[!] Cookie parsing failed, downloading without cookies: {e}')
 
+    # Build extractor_args — ios client needs no JS runtime and supports cookies
+    youtube_args = {'player_client': ['ios', 'mweb']}
+    if po_token and po_token.strip():
+        # po_token + visitor_data bypass YouTube's datacenter IP (Colab) bot-detection
+        youtube_args['po_token'] = [f'web+{po_token.strip()}']
+        if visitor_data and visitor_data.strip():
+            youtube_args['visitor_data'] = [visitor_data.strip()]
+
     ydl_opts = {
         'format': 'bestaudio',
         'outtmpl': '%(title)s',
@@ -145,14 +155,7 @@ def yt_download(link, cookies_str=None, cookies_file=None):
                 'Chrome/124.0.0.0 Safari/537.36'
             ),
         },
-        # Use ios client: no JavaScript runtime needed for signature solving,
-        # and it fully supports cookie auth. mweb is the fallback.
-        # Do NOT skip dash/hls — that strips all audio formats.
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'mweb'],
-            },
-        },
+        'extractor_args': {'youtube': youtube_args},
     }
     if cookiefile_path:
         ydl_opts['cookiefile'] = cookiefile_path
@@ -163,7 +166,7 @@ def yt_download(link, cookies_str=None, cookies_file=None):
             if result is None:
                 raise Exception(
                     'yt-dlp returned no result — YouTube may have blocked the request. '
-                    'Try providing fresh cookies from a logged-in YouTube session.'
+                    'Try providing fresh cookies and/or a po_token from a logged-in YouTube session.'
                 )
             download_path = ydl.prepare_filename(result, outtmpl='%(title)s.mp3')
     finally:
@@ -278,12 +281,13 @@ def display_progress(message, percent, is_webui, progress=None):
 
 
 def preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress=None,
-                    cookies_str=None, cookies_file=None):
+                    cookies_str=None, cookies_file=None, po_token=None, visitor_data=None):
     keep_orig = False
     if input_type == 'yt':
         display_progress('[~] Downloading song...', 0, is_webui, progress)
         song_link = song_input.split('&')[0]
-        orig_song_path = yt_download(song_link, cookies_str=cookies_str, cookies_file=cookies_file)
+        orig_song_path = yt_download(song_link, cookies_str=cookies_str, cookies_file=cookies_file,
+                                     po_token=po_token, visitor_data=visitor_data)
     elif input_type == 'local':
         orig_song_path = song_input
         keep_orig = True
@@ -352,7 +356,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
                         is_webui=0, main_gain=0, backup_gain=0, inst_gain=0, index_rate=0.5, filter_radius=3,
                         rms_mix_rate=0.25, f0_method='rmvpe', crepe_hop_length=128, protect=0.33, pitch_change_all=0,
                         reverb_rm_size=0.15, reverb_wet=0.2, reverb_dry=0.8, reverb_damping=0.7, output_format='mp3',
-                        cookies_str=None, cookies_file=None,
+                        cookies_str=None, cookies_file=None, po_token=None, visitor_data=None,
                         progress=gr.Progress()):
     try:
         if not song_input or not voice_model:
@@ -386,7 +390,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
 
         if not os.path.exists(song_dir):
             os.makedirs(song_dir)
-            orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress, cookies_str=cookies_str, cookies_file=cookies_file)
+            orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress, cookies_str=cookies_str, cookies_file=cookies_file, po_token=po_token, visitor_data=visitor_data)
 
         else:
             vocals_path, main_vocals_path = None, None
@@ -394,7 +398,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
 
             # if any of the audio files aren't available or keep intermediate files, rerun preprocess
             if any(path is None for path in paths) or keep_files:
-                orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress, cookies_str=cookies_str, cookies_file=cookies_file)
+                orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress, cookies_str=cookies_str, cookies_file=cookies_file, po_token=po_token, visitor_data=visitor_data)
             else:
                 orig_song_path, instrumentals_path, main_vocals_dereverb_path, backup_vocals_path = paths
 
