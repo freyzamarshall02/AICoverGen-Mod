@@ -8,6 +8,12 @@ from argparse import ArgumentParser
 
 import gradio as gr
 
+from download_models import (
+    download_mdx_models,
+    download_roformer_model,
+    download_contentvec,
+    download_rmvpe,
+)
 from main import song_cover_pipeline
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -172,6 +178,14 @@ if __name__ == '__main__':
     parser.add_argument('--listen-host', type=str, help='The hostname that the server will use.')
     parser.add_argument('--listen-port', type=int, help='The listening port that the server will use.')
     args = parser.parse_args()
+
+    # ── Auto-download required base models (skips files that already exist) ──
+    print('[*] Checking required base models...')
+    download_mdx_models()
+    download_roformer_model()
+    download_contentvec()
+    download_rmvpe()
+    print('[+] Base models ready.\n')
 
     voice_models = get_current_models(rvc_models_dir)
     with open(os.path.join(rvc_models_dir, 'public_models.json'), encoding='utf8') as infile:
