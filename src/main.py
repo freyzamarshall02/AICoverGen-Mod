@@ -145,11 +145,12 @@ def yt_download(link, cookies_str=None, cookies_file=None):
                 'Chrome/124.0.0.0 Safari/537.36'
             ),
         },
-        # Tell the YouTube extractor to skip the "reload page" check
+        # Use ios client: no JavaScript runtime needed for signature solving,
+        # and it fully supports cookie auth. mweb is the fallback.
+        # Do NOT skip dash/hls — that strips all audio formats.
         'extractor_args': {
             'youtube': {
-                'player_client': ['web', 'android'],
-                'skip': ['dash', 'hls'],
+                'player_client': ['ios', 'mweb'],
             },
         },
     }
@@ -174,10 +175,13 @@ def yt_download(link, cookies_str=None, cookies_file=None):
 
 
 def raise_exception(error_msg, is_webui):
+    import re as _re
+    # Strip ANSI terminal colour codes (e.g. from yt-dlp) so Gradio shows clean text
+    clean_msg = _re.sub(r'\x1b\[[0-9;]*m', '', str(error_msg))
     if is_webui and _GRADIO_AVAILABLE:
-        raise gr.Error(error_msg)
+        raise gr.Error(clean_msg)
     else:
-        raise Exception(error_msg)
+        raise Exception(clean_msg)
 
 
 def get_rvc_model(voice_model, is_webui):
