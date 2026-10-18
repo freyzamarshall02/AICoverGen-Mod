@@ -189,7 +189,7 @@ def get_hash(filepath):
 
 
 def display_progress(message, percent, is_webui, progress=None):
-    if is_webui:
+    if is_webui and callable(progress):
         progress(percent, desc=message)
     else:
         print(message)
@@ -269,7 +269,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
                         is_webui=0, main_gain=0, backup_gain=0, inst_gain=0, index_rate=0.5, filter_radius=3,
                         rms_mix_rate=0.25, f0_method='rmvpe', crepe_hop_length=128, protect=0.33, pitch_change_all=0,
                         reverb_rm_size=0.15, reverb_wet=0.2, reverb_dry=0.8, reverb_damping=0.7, output_format='mp3',
-                        progress=None):
+                        progress=gr.Progress()):
     try:
         if not song_input or not voice_model:
             raise_exception('Ensure that the song input field and voice model field is filled.', is_webui)
