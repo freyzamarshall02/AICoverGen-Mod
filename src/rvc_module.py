@@ -78,10 +78,10 @@ def get_vc(device, is_half, config, model_path):
     print(net_g.load_state_dict(cpt["weight"], strict=False))
     net_g = net_g.to(device)
 
-    if is_half:
-        net_g = net_g.half()
-    else:
-        net_g = net_g.float()
+    # Always run net_g in float32 — matches pipeline.py's feats.float() call.
+    # fp16 inference caused a dtype mismatch crash (float != c10::Half) on CUDA.
+    # Applio takes the same approach: net_g.to(device).float() unconditionally.
+    net_g = net_g.float()
 
     net_g.eval()
 

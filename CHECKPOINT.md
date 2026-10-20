@@ -25,45 +25,15 @@
 
 ---
 
-## 🔴 Current Open Bug — RVC dtype mismatch
+## ✅ RVC dtype mismatch — FIXED
 
-### Error
+### Error (was)
 ```
 RuntimeError: expected mat1 and mat2 to have the same dtype, but got: float != c10::Half
 ```
 
-### Traceback location
-```
-pipeline.py:393  →  net_g.infer(feats.float(), ...)
-synthesizers.py:251  →  infer_latent → enc_p(phone, ...)
-encoders.py:131  →  x = self.emb_phone(phone)   ← CRASH
-F.linear(input, self.weight, self.bias)          ← input=float32, weight=fp16
-```
-
-### Root Cause
-- `Config.is_half` defaults to `True` on CUDA → `get_vc()` in `rvc_module.py` calls `net_g = net_g.half()` → model weights are **fp16**.
-- `pipeline.py` line 393 hardcodes `feats.float()` → forces input to **fp32**.
-- fp32 input into fp16 Linear layer = crash.
-
-### Files to investigate
-- `src/rvc/infer/pipeline.py` — line 393: `net_g.infer(feats.float(), ...)` → should be `feats.to(dtype=next(net_g.parameters()).dtype)` or respect `is_half`.
-- `src/rvc_module.py` — `get_vc()` lines 81-82: this is where `is_half` controls whether net_g is half or float.
-- `src/rvc/configs/config.py` — `is_half=True` by default on CUDA.
-
-### Proposed Fix (NOT YET APPLIED)
-In `src/rvc/infer/pipeline.py` line 393, change:
-```python
-# BEFORE
-(net_g.infer(feats.float(), p_len, pitch, pitchf, sid)[0][0, 0])
-
-# AFTER — match net_g's actual weight dtype
-(net_g.infer(feats.to(dtype=next(net_g.parameters()).dtype), p_len, pitch, pitchf, sid)[0][0, 0])
-```
-Or alternatively, in `src/rvc_module.py` `get_vc()`, force float32 for inference stability:
-```python
-net_g = net_g.float()   # instead of net_g.half()
-```
-Check Applio's `rvc/infer/infer.py` → `setup_network()` method for how they handle the dtype — they may have a cleaner pattern. Applio's `realtime/pipeline.py:48` has `self.dtype = torch.float32` (commented-out fp16 line) suggesting they may force float32 for inference.
+### Fix Applied
+In `src/rvc_module.py` `get_vc()` — replaced the `if is_half: net_g.half()` branch with an unconditional `net_g.float()`, matching how Applio's `rvc/infer/infer.py` line 529 handles it (`self.net_g.to(device).float()`). The `pipeline.py` already passes `feats.float()`, so forcing net_g to fp32 resolves the mismatch. Applio deliberately removed fp16 inference for stability.
 
 ---
 
@@ -84,10 +54,9 @@ Song Input
   │  denoise=True (2 passes)
   │  → Main_Vocals_DeReverb.wav
   │
-  ▼ RVC Voice Conversion  ← 🔴 BROKEN (dtype mismatch)
-     net_g loaded as fp16 (is_half=True)
-     feats passed as fp32 (feats.float())
-     → RuntimeError: float != c10::Half
+  ▼ RVC Voice Conversion  ✅ FIXED
+     net_g forced to fp32 (rvc_module.py get_vc)
+     feats.float() in pipeline.py → both fp32, no mismatch
 ```
 
 ---
