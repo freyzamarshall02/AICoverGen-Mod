@@ -301,6 +301,7 @@ if __name__ == '__main__':
 
                 gr.Markdown('### Audio Output Format')
                 output_format = gr.Dropdown(['mp3', 'wav'], value='mp3', label='Output file type', info='mp3: small file size, decent quality. wav: Large file size, best quality')
+                vocal_channels = gr.Radio(['Mono', 'Stereo'], value='Stereo', label='AI Vocal channels', info='Stereo upmixes the RVC output before reverb so the wet signal is true stereo. Mono keeps the single channel as-is.')
 
             with gr.Row():
                 clear_btn = gr.ClearButton(value='Clear', components=[song_input, rvc_model, keep_files, local_file])
@@ -315,12 +316,12 @@ if __name__ == '__main__':
                                inputs=[song_input, rvc_model, pitch, keep_files, is_webui, main_gain, backup_gain,
                                        inst_gain, index_rate, filter_radius, rms_mix_rate, f0_method, crepe_hop_length,
                                        protect, pitch_all, reverb_rm_size, reverb_wet, reverb_dry, reverb_damping,
-                                       output_format, cookies_str, cookies_file, po_token, visitor_data],
+                                       output_format, vocal_channels, cookies_str, cookies_file, po_token, visitor_data],
                                outputs=[ai_cover, ai_backing])
-            clear_btn.click(lambda: [0, 0, 0, 0, 0.5, 3, 0.25, 0.33, 'rmvpe', 128, 0, 0.15, 0.2, 0.8, 0.7, 'mp3', None],
+            clear_btn.click(lambda: [0, 0, 0, 0, 0.5, 3, 0.25, 0.33, 'rmvpe', 128, 0, 0.15, 0.2, 0.8, 0.7, 'mp3', 'Stereo', None],
                             outputs=[pitch, main_gain, backup_gain, inst_gain, index_rate, filter_radius, rms_mix_rate,
                                      protect, f0_method, crepe_hop_length, pitch_all, reverb_rm_size, reverb_wet,
-                                     reverb_dry, reverb_damping, output_format, ai_cover])
+                                     reverb_dry, reverb_damping, output_format, vocal_channels, ai_cover])
 
         # Download tab
         with gr.Tab('Download model'):
