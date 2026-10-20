@@ -295,13 +295,11 @@ def run_mdx(model_params, output_dir, model_path, filename, exclude_main=False, 
 
 def run_roformer(model_params, output_dir, model_name, filename, exclude_main=False, exclude_inversion=False, suffix=None, invert_suffix=None, denoise=False, keep_orig=True, m_threads=2):
     os.makedirs(output_dir, exist_ok=True)
-    
-    # Load and process the audio
-    wave, sr = librosa.load(filename, mono=False, sr=44100)
+
     base_name = os.path.splitext(os.path.basename(filename))[0]
-    
+
     roformer_output_format = 'wav'
-    roformer_overlap = 4
+    roformer_overlap = 2   # 4 = highest quality but ~2x slower; 2 is a good speed/quality balance
     roformer_segment_size = 256
     print(f"output_dir: {output_dir}")
     prompt = f'audio-separator "{filename}" --model_filename {model_name} --output_dir="{output_dir}" --output_format={roformer_output_format} --normalization=0.9 --mdxc_overlap={roformer_overlap} --mdxc_segment_size={roformer_segment_size}'

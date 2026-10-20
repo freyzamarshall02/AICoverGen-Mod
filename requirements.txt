@@ -15,7 +15,9 @@ praat-parselmouth
 pyworld
 
 # Source separation
-onnxruntime>=1.17.0
+# onnxruntime-gpu is pulled in transitively by audio-separator[gpu].
+# Do NOT list plain 'onnxruntime' here — it overwrites onnxruntime-gpu and
+# breaks CUDAExecutionProvider, forcing MDX stages (KARA_2, Reverb) onto CPU.
 audio-separator[gpu]
 
 # Audio post-processing
