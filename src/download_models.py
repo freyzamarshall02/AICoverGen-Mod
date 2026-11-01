@@ -57,6 +57,9 @@ CONTENTVEC_CFG_URL = f"{_APPLIO_BASE}/embedders/contentvec/config.json"
 # RMVPE F0 predictor
 RMVPE_URL = "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/rmvpe.pt"
 
+# FCPE F0 predictor
+FCPE_URL = "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/predictors/fcpe.pt"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -133,6 +136,13 @@ def download_rmvpe() -> None:
     _dl(RMVPE_URL, predictors_dir / "rmvpe.pt", desc="rmvpe.pt")
 
 
+def download_fcpe() -> None:
+    """Download the FCPE F0 predictor weight."""
+    print("\n=== FCPE F0 predictor ===")
+    predictors_dir.mkdir(parents=True, exist_ok=True)
+    _dl(FCPE_URL, predictors_dir / "fcpe.pt", desc="fcpe.pt")
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -145,8 +155,10 @@ if __name__ == "__main__":
     download_roformer_model()
     download_contentvec()
     download_rmvpe()
+    download_fcpe()
 
     print("\n[+] All models downloaded successfully!")
     print(f"    contentvec  : {embedders_dir}/")
     print(f"    rmvpe.pt    : {predictors_dir}/rmvpe.pt")
+    print(f"    fcpe.pt     : {predictors_dir}/fcpe.pt")
     print(f"    MDX/Roformer: {mdxnet_models_dir}/")

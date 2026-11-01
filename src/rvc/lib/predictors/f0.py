@@ -175,7 +175,7 @@ class FCPE:
         self.sample_rate = sample_rate
         self.hop_size = hop_size
         self.model = spawn_infer_model_from_pt(
-            os.path.join("rvc", "models", "predictors", "fcpe.pt"),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))), "rvc_models", "predictors", "fcpe.pt"),
             self.device,
             bundled_model=True,
         )
