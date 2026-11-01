@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import shlex
+import shutil
 import subprocess
 from urllib.parse import urlparse, parse_qs
 
@@ -22,6 +23,17 @@ from pydub import AudioSegment
 
 from mdx import run_mdx, run_roformer
 from rvc_module import Config, load_hubert, get_vc, rvc_infer
+
+# ── Deno runtime — needed by yt-dlp-ejs for YouTube signature/n-challenge ──
+# Prepend ~/.deno/bin to PATH if present so yt-dlp can find the Deno binary.
+_deno_bin = os.path.join(os.path.expanduser('~'), '.deno', 'bin')
+if os.path.isdir(_deno_bin) and _deno_bin not in os.environ.get('PATH', ''):
+    os.environ['PATH'] = _deno_bin + os.pathsep + os.environ.get('PATH', '')
+if shutil.which('deno'):
+    print(f'[deno] found at {shutil.which("deno")}')
+else:
+    print('[deno] NOT found — YouTube signature solving may fail. '
+          'Install Deno (https://deno.com) and restart.')
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -186,7 +198,9 @@ def yt_download(link, cookies_str=None, cookies_file=None):
         'cachedir': False,
         'extractaudio': True,
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3'}],
-        'extractor_args': {'youtube': {'player_client': ['ios', 'mweb']}},
+        # Do NOT override extractor_args/player_client — let yt-dlp choose its
+        # own defaults (web_embedded etc.) so it can use whatever JS runtime
+        # (Deno) is available for signature/n-challenge solving.
     }
 
     cookie_file_path = None

@@ -10,6 +10,12 @@ rvc_models/*/*.rar
 rvc_models/hubert_base.pt
 rvc_models/rmvpe.pt
 
+# Cookie files — never commit
+cookies.txt
+cookies.json
+*.cookies.txt
+*.cookies.json
+
 # Output
 song_output/*/*.wav
 song_output/*/*.mp3
