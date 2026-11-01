@@ -1,4 +1,4 @@
-import os
+subimport os
 try:
     import deno
     os.environ["PATH"] = os.path.dirname(deno.find_deno_bin()) + os.pathsep + os.environ["PATH"]
@@ -299,7 +299,7 @@ def convert_to_stereo(audio_path):
         return audio_path
 
 
-def pitch_shift(audio_path, pitch_change):
+def pitch_shift(audio_path, pitch_change, affect_speed=False):
     """
     Shift the pitch of an audio file by a given number of semitones.
     Uses ffmpeg's asetrate+aresample filter chain (no sox dependency).
@@ -307,18 +307,34 @@ def pitch_shift(audio_path, pitch_change):
     Args:
         audio_path (str): Path to the input WAV file.
         pitch_change (int|float): Pitch shift in semitones.
+        affect_speed (bool): If True, pitch shift also changes playback speed
+            (classic tape-style). If False (default), an atempo correction is
+            applied after aresample so that duration is preserved and the
+            result stays in sync with the RVC-converted vocals.
 
     Returns:
         str: Path to the pitch-shifted output WAV file.
     """
-    output_path = f'{os.path.splitext(audio_path)[0]}_p{pitch_change}.wav'
+    suffix = f'_p{pitch_change}{"_spd" if affect_speed else ""}'
+    output_path = f'{os.path.splitext(audio_path)[0]}{suffix}.wav'
     if not os.path.exists(output_path):
-        # asetrate adjusts playback speed to shift pitch, aresample restores SR
-        shifted_rate = 44100 * (2 ** (pitch_change / 12))
+        factor = 2 ** (pitch_change / 12)
+        shifted_rate = 44100 * factor
+        if affect_speed:
+            # asetrate shifts both pitch and duration; aresample restores SR.
+            # Duration (speed) is intentionally left changed.
+            af = f'asetrate={shifted_rate:.4f},aresample=44100'
+        else:
+            # asetrate+aresample shifts pitch but also alters duration.
+            # atempo=1/factor undoes the speed change, preserving duration.
+            # Valid atempo range is [0.5, 2.0], which covers ±12 semitones
+            # (the full range of the Overall Pitch Change slider).
+            atempo = 1.0 / factor
+            af = f'asetrate={shifted_rate:.4f},aresample=44100,atempo={atempo:.6f}'
         cmd = [
             'ffmpeg', '-y', '-loglevel', 'error',
             '-i', audio_path,
-            '-af', f'asetrate={shifted_rate:.4f},aresample=44100',
+            '-af', af,
             output_path
         ]
         subprocess.run(cmd, check=True)
@@ -424,6 +440,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
                         reverb_rm_size=0.15, reverb_wet=0.2, reverb_dry=0.8, reverb_damping=0.7, output_format='mp3',
                         vocal_channels='Stereo',
                         cookies_str=None, cookies_file=None,
+                        pitch_change_all_affect_speed=False,
                         progress=gr.Progress()):
     try:
         if not song_input or not voice_model:
@@ -489,8 +506,8 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
 
         if pitch_change_all != 0:
             display_progress('[~] Applying overall pitch change', 0.85, is_webui, progress)
-            instrumentals_path = pitch_shift(instrumentals_path, pitch_change_all)
-            backup_vocals_path = pitch_shift(backup_vocals_path, pitch_change_all)
+            instrumentals_path = pitch_shift(instrumentals_path, pitch_change_all, affect_speed=pitch_change_all_affect_speed)
+            backup_vocals_path = pitch_shift(backup_vocals_path, pitch_change_all, affect_speed=pitch_change_all_affect_speed)
 
         display_progress('[~] Combining AI Vocals and Instrumentals...', 0.9, is_webui, progress)
         combine_audio([ai_vocals_mixed_path, backup_vocals_path, instrumentals_path], ai_cover_path, main_gain, backup_gain, inst_gain, output_format)

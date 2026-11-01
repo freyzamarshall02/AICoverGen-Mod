@@ -172,6 +172,51 @@ def show_hop_slider(pitch_detection_algo):
         return gr.update(visible=False)
 
 
+def toggle_pitch_mode(mode):
+    """Show the correct pitch group and hide the other."""
+    if mode == 'Vocals Only':
+        return gr.update(visible=True), gr.update(visible=False)
+    else:
+        return gr.update(visible=False), gr.update(visible=True)
+
+
+def run_pipeline(song_input, rvc_model, pitch_mode,
+                 pitch, pitch_all, pitch_all_affect_speed,
+                 keep_files, is_webui,
+                 main_gain, backup_gain, inst_gain,
+                 index_rate, filter_radius, rms_mix_rate,
+                 f0_method, crepe_hop_length, protect,
+                 reverb_rm_size, reverb_wet, reverb_dry, reverb_damping,
+                 output_format, vocal_channels,
+                 cookies_str, cookies_file,
+                 progress=gr.Progress()):
+    """
+    Wrapper that enforces mutual exclusion between pitch modes before
+    delegating to song_cover_pipeline.
+    """
+    if pitch_mode == 'Vocals Only':
+        effective_pitch     = pitch
+        effective_pitch_all = 0
+        affect_speed        = False
+    else:  # Overall
+        effective_pitch     = 0
+        effective_pitch_all = pitch_all
+        affect_speed        = pitch_all_affect_speed
+
+    return song_cover_pipeline(
+        song_input, rvc_model, effective_pitch, keep_files,
+        is_webui, main_gain, backup_gain, inst_gain,
+        index_rate, filter_radius, rms_mix_rate,
+        f0_method, crepe_hop_length, protect,
+        effective_pitch_all,
+        reverb_rm_size, reverb_wet, reverb_dry, reverb_damping,
+        output_format, vocal_channels,
+        cookies_str, cookies_file,
+        pitch_change_all_affect_speed=affect_speed,
+        progress=progress,
+    )
+
+
 if __name__ == '__main__':
     parser = ArgumentParser(description='Generate a AI cover song in the song_output/id directory.', add_help=True)
     parser.add_argument("--share", action="store_true", dest="share_enabled", default=False, help="Enable sharing")
@@ -217,8 +262,29 @@ if __name__ == '__main__':
                         song_input_file.upload(process_file_upload, inputs=[song_input_file], outputs=[local_file, song_input])
 
                     with gr.Column():
-                        pitch = gr.Slider(-24, 24, value=0, step=1, label='Pitch Change (Vocals ONLY)', info='Generally, use 12 for male to female conversions and -12 for vice-versa. (Octaves)')
-                        pitch_all = gr.Slider(-12, 12, value=0, step=1, label='Overall Pitch Change', info='Changes pitch/key of vocals and instrumentals together. Altering this slightly reduces sound quality. (Semitones)')
+                        pitch_mode = gr.Radio(
+                            ['Vocals Only', 'Overall (Vocals + Instrumental)'],
+                            value='Vocals Only',
+                            label='Pitch Change Mode',
+                            info='Choose whether to shift only the AI vocals or everything (vocals + instrumental) together.',
+                        )
+                        with gr.Group(visible=True) as vocals_only_group:
+                            pitch = gr.Slider(-24, 24, value=0, step=1,
+                                             label='Pitch Change (Vocals ONLY)',
+                                             info='Generally use 12 for male→female and -12 for vice-versa. (Semitones)')
+                        with gr.Group(visible=False) as overall_group:
+                            pitch_all = gr.Slider(-12, 12, value=0, step=1,
+                                                  label='Overall Pitch Change',
+                                                  info='Shifts pitch of AI vocals AND instrumental together. (Semitones)')
+                            pitch_all_affect_speed = gr.Checkbox(
+                                value=False,
+                                label='Pitch affects speed',
+                                info='Checked: pitch-shift also changes playback speed (tape-style). '
+                                     'Unchecked (default): duration is preserved so vocals and instrumental stay in sync.',
+                            )
+                        pitch_mode.change(toggle_pitch_mode,
+                                          inputs=pitch_mode,
+                                          outputs=[vocals_only_group, overall_group])
                     show_file_upload_button.click(swap_visibility, outputs=[file_upload_col, yt_link_col, song_input, local_file])
                     show_yt_link_button.click(swap_visibility, outputs=[yt_link_col, file_upload_col, song_input, local_file])
 
@@ -282,16 +348,21 @@ if __name__ == '__main__':
 
             ref_btn.click(update_models_list, None, outputs=rvc_model)
             is_webui = gr.Number(value=1, visible=False)
-            generate_btn.click(song_cover_pipeline,
-                               inputs=[song_input, rvc_model, pitch, keep_files, is_webui, main_gain, backup_gain,
-                                       inst_gain, index_rate, filter_radius, rms_mix_rate, f0_method, crepe_hop_length,
-                                       protect, pitch_all, reverb_rm_size, reverb_wet, reverb_dry, reverb_damping,
+            generate_btn.click(run_pipeline,
+                               inputs=[song_input, rvc_model, pitch_mode,
+                                       pitch, pitch_all, pitch_all_affect_speed,
+                                       keep_files, is_webui,
+                                       main_gain, backup_gain, inst_gain,
+                                       index_rate, filter_radius, rms_mix_rate,
+                                       f0_method, crepe_hop_length, protect,
+                                       reverb_rm_size, reverb_wet, reverb_dry, reverb_damping,
                                        output_format, vocal_channels, cookies_str, cookies_file],
                                outputs=[ai_cover, ai_backing])
-            clear_btn.click(lambda: [0, 0, 0, 0, 0.5, 3, 0.25, 0.33, 'rmvpe', 128, 0, 0.15, 0.2, 0.8, 0.7, 'mp3', 'Stereo', None],
+            clear_btn.click(lambda: [0, 0, 0, 0, 0.5, 3, 0.25, 0.33, 'rmvpe', 128, 0, 0, 0.15, 0.2, 0.8, 0.7, 'mp3', 'Stereo', 'Vocals Only', False, None],
                             outputs=[pitch, main_gain, backup_gain, inst_gain, index_rate, filter_radius, rms_mix_rate,
-                                     protect, f0_method, crepe_hop_length, pitch_all, reverb_rm_size, reverb_wet,
-                                     reverb_dry, reverb_damping, output_format, vocal_channels, ai_cover])
+                                     protect, f0_method, crepe_hop_length, pitch_all, pitch, reverb_rm_size, reverb_wet,
+                                     reverb_dry, reverb_damping, output_format, vocal_channels, pitch_mode,
+                                     pitch_all_affect_speed, ai_cover])
 
         # Download tab
         with gr.Tab('Download model'):
