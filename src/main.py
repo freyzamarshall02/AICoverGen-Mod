@@ -77,88 +77,126 @@ def get_youtube_video_id(url, ignore_playlist=True):
     return None
 
 
-def yt_download(link, cookies_str=None, cookies_file=None, po_token=None, visitor_data=None):
-    """
-    Download audio from a YouTube link.
-    Supports passing cookies to bypass bot-detection / age-restrictions.
+MAX_COOKIE_JSON_BYTES = 2 * 1024 * 1024
 
-    cookies_str   : raw browser-exported JSON string  (pasted from UI)
-    cookies_file  : path to a JSON cookie file        (uploaded from UI)
-    po_token      : Proof-of-Origin token from browser (needed on Colab/datacenters)
-    visitor_data  : Visitor data string paired with po_token
+
+def _cookies_json_to_netscape(cookies_str=None, cookies_file=None):
+    """
+    Convert browser-exported JSON cookies (pasted string or uploaded file path)
+    into a Netscape-format cookie string for yt-dlp.
+    Returns the string, or None if no cookies were provided.
     """
     import json as _json
-    import tempfile
 
-    cookiefile_path = None
-    _tmp_cookie_file = None
-
-    # Resolve cookie source: file takes priority over pasted text
     raw_json = None
     if cookies_file and os.path.exists(cookies_file):
+        if os.path.getsize(cookies_file) > MAX_COOKIE_JSON_BYTES:
+            raise ValueError('Cookie JSON file must be 2 MB or smaller.')
         with open(cookies_file, 'r', encoding='utf-8') as f:
             raw_json = f.read()
     elif cookies_str and cookies_str.strip():
         raw_json = cookies_str.strip()
+        if len(raw_json.encode('utf-8')) > MAX_COOKIE_JSON_BYTES:
+            raise ValueError('Cookie JSON must be 2 MB or smaller.')
 
-    if raw_json:
+    if not raw_json:
+        return None
+
+    try:
+        data = _json.loads(raw_json)
+    except _json.JSONDecodeError as exc:
+        raise ValueError(f'Could not parse cookie input as JSON: {exc}') from exc
+
+    if isinstance(data, list):
+        cookies = data
+    elif isinstance(data, dict) and isinstance(data.get('cookies'), list):
+        cookies = data['cookies']
+    else:
+        raise ValueError('Cookie JSON must be a list or an object with a "cookies" list.')
+
+    lines = ['# Netscape HTTP Cookie File']
+    for c in cookies:
+        if not isinstance(c, dict):
+            continue
+
+        name  = c.get('name', '')
+        value = c.get('value', '')
+        domain = c.get('domain', '')
+        if not name or not isinstance(value, str) or not domain:
+            continue
+
+        # Normalise domain
+        norm = domain.strip().lower().lstrip('.').rstrip('.')
+        if not (
+            norm == 'youtube.com' or norm.endswith('.youtube.com')
+            or norm == 'google.com' or norm.endswith('.google.com')
+        ):
+            continue
+
+        path     = c.get('path', '/')
+        secure   = 'TRUE' if c.get('secure', False) else 'FALSE'
+        host_only = c.get('hostOnly')
+        inc_sub   = not host_only if isinstance(host_only, bool) else domain.strip().startswith('.')
+        net_domain = f'.{norm}' if inc_sub else norm
+        if c.get('httpOnly'):
+            net_domain = f'#HttpOnly_{net_domain}'
+
+        expires = c.get('expirationDate', c.get('expires', 0))
+        if c.get('session') or expires in (None, ''):
+            expires = 0
         try:
-            data = _json.loads(raw_json)
-            # Support both bare list and {"cookies": [...]} wrapper
-            cookies_list = data if isinstance(data, list) else data.get('cookies', [])
+            expires = max(0, int(float(expires)))
+        except (TypeError, ValueError):
+            expires = 0
 
-            # Write Netscape cookie file that yt-dlp understands
-            _tmp_cookie_file = tempfile.NamedTemporaryFile(
-                mode='w', suffix='.txt', delete=False, encoding='utf-8'
-            )
-            _tmp_cookie_file.write('# Netscape HTTP Cookie File\n')
-            for c in cookies_list:
-                domain   = c.get('domain', '')
-                flag     = 'TRUE' if domain.startswith('.') else 'FALSE'
-                path     = c.get('path', '/')
-                secure   = 'TRUE' if c.get('secure', False) else 'FALSE'
-                expires  = str(int(c.get('expirationDate', 0) or 0))
-                name     = c.get('name', '')
-                value    = c.get('value', '')
-                _tmp_cookie_file.write(
-                    f'{domain}\t{flag}\t{path}\t{secure}\t{expires}\t{name}\t{value}\n'
-                )
-            _tmp_cookie_file.flush()
-            _tmp_cookie_file.close()
-            cookiefile_path = _tmp_cookie_file.name
-        except Exception as e:
-            print(f'[!] Cookie parsing failed, downloading without cookies: {e}')
+        lines.append('\t'.join([
+            net_domain,
+            'TRUE' if inc_sub else 'FALSE',
+            path, secure, str(expires), name, value,
+        ]))
 
-    # Build extractor_args — ios client needs no JS runtime and supports cookies
-    youtube_args = {'player_client': ['ios', 'mweb']}
-    if po_token and po_token.strip():
-        # po_token + visitor_data bypass YouTube's datacenter IP (Colab) bot-detection
-        youtube_args['po_token'] = [f'web+{po_token.strip()}']
-        if visitor_data and visitor_data.strip():
-            youtube_args['visitor_data'] = [visitor_data.strip()]
+    if len(lines) == 1:
+        raise ValueError('No YouTube or Google cookies were found in that JSON.')
+
+    return '\n'.join(lines) + '\n'
+
+
+def yt_download(link, cookies_str=None, cookies_file=None):
+    """
+    Download audio from a YouTube link.
+    Supports passing cookies (pasted JSON string or uploaded JSON file path)
+    to bypass bot-detection / age-restrictions.
+    """
+    import tempfile
+
+    cookie_text = None
+    try:
+        cookie_text = _cookies_json_to_netscape(cookies_str=cookies_str, cookies_file=cookies_file)
+    except Exception as e:
+        print(f'[!] Cookie parsing failed, downloading without cookies: {e}')
 
     ydl_opts = {
-        'format': 'bestaudio',
+        'format': 'bestaudio/best',
         'outtmpl': '%(title)s',
         'nocheckcertificate': True,
-        # Do NOT set ignoreerrors=True — it swallows failures and returns None,
-        # causing a crash in prepare_filename. Let exceptions propagate instead.
         'no_warnings': False,
         'quiet': False,
+        'retries': 3,
+        'socket_timeout': 20,
+        'cachedir': False,
         'extractaudio': True,
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3'}],
-        # Mimic a real browser to reduce bot-detection rejections
-        'http_headers': {
-            'User-Agent': (
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                'AppleWebKit/537.36 (KHTML, like Gecko) '
-                'Chrome/124.0.0.0 Safari/537.36'
-            ),
-        },
-        'extractor_args': {'youtube': youtube_args},
+        'extractor_args': {'youtube': {'player_client': ['ios', 'mweb']}},
     }
-    if cookiefile_path:
-        ydl_opts['cookiefile'] = cookiefile_path
+
+    cookie_file_path = None
+    if cookie_text:
+        tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
+        tmp.write(cookie_text)
+        tmp.flush()
+        tmp.close()
+        cookie_file_path = tmp.name
+        ydl_opts['cookiefile'] = cookie_file_path
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -166,13 +204,17 @@ def yt_download(link, cookies_str=None, cookies_file=None, po_token=None, visito
             if result is None:
                 raise Exception(
                     'yt-dlp returned no result — YouTube may have blocked the request. '
-                    'Try providing fresh cookies and/or a po_token from a logged-in YouTube session.'
+                    'Try providing fresh cookies from a logged-in YouTube session.'
                 )
             download_path = ydl.prepare_filename(result, outtmpl='%(title)s.mp3')
+    except yt_dlp.utils.DownloadError as e:
+        msg = str(e)
+        if 'Sign in to confirm' in msg or 'bot' in msg.lower():
+            raise Exception('YouTube is asking for a login (bot check). Please provide fresh cookies.') from e
+        raise
     finally:
-        # Clean up temp cookie file
-        if _tmp_cookie_file and os.path.exists(_tmp_cookie_file.name):
-            os.remove(_tmp_cookie_file.name)
+        if cookie_file_path and os.path.exists(cookie_file_path):
+            os.remove(cookie_file_path)
 
     return download_path
 
@@ -281,13 +323,12 @@ def display_progress(message, percent, is_webui, progress=None):
 
 
 def preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress=None,
-                    cookies_str=None, cookies_file=None, po_token=None, visitor_data=None):
+                    cookies_str=None, cookies_file=None):
     keep_orig = False
     if input_type == 'yt':
         display_progress('[~] Downloading song...', 0, is_webui, progress)
         song_link = song_input.split('&')[0]
-        orig_song_path = yt_download(song_link, cookies_str=cookies_str, cookies_file=cookies_file,
-                                     po_token=po_token, visitor_data=visitor_data)
+        orig_song_path = yt_download(song_link, cookies_str=cookies_str, cookies_file=cookies_file)
     elif input_type == 'local':
         orig_song_path = song_input
         keep_orig = True
@@ -362,7 +403,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
                         rms_mix_rate=0.25, f0_method='rmvpe', crepe_hop_length=128, protect=0.33, pitch_change_all=0,
                         reverb_rm_size=0.15, reverb_wet=0.2, reverb_dry=0.8, reverb_damping=0.7, output_format='mp3',
                         vocal_channels='Stereo',
-                        cookies_str=None, cookies_file=None, po_token=None, visitor_data=None,
+                        cookies_str=None, cookies_file=None,
                         progress=gr.Progress()):
     try:
         if not song_input or not voice_model:
@@ -396,7 +437,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
 
         if not os.path.exists(song_dir):
             os.makedirs(song_dir)
-            orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress, cookies_str=cookies_str, cookies_file=cookies_file, po_token=po_token, visitor_data=visitor_data)
+            orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress, cookies_str=cookies_str, cookies_file=cookies_file)
 
         else:
             vocals_path, main_vocals_path = None, None
@@ -404,7 +445,7 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
 
             # if any of the audio files aren't available or keep intermediate files, rerun preprocess
             if any(path is None for path in paths) or keep_files:
-                orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress, cookies_str=cookies_str, cookies_file=cookies_file, po_token=po_token, visitor_data=visitor_data)
+                orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress, cookies_str=cookies_str, cookies_file=cookies_file)
             else:
                 orig_song_path, instrumentals_path, main_vocals_dereverb_path, backup_vocals_path = paths
 

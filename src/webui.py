@@ -222,35 +222,14 @@ if __name__ == '__main__':
                     show_file_upload_button.click(swap_visibility, outputs=[file_upload_col, yt_link_col, song_input, local_file])
                     show_yt_link_button.click(swap_visibility, outputs=[yt_link_col, file_upload_col, song_input, local_file])
 
-            with gr.Accordion('🍪 YouTube Cookies & PO Token (needed on Google Colab)', open=False):
+            with gr.Accordion('🍪 YouTube Cookies (optional, needed if YouTube blocks the request)', open=False):
                 gr.Markdown(
-                    '## 🍪 Step 1 — Export Cookies\n'
-                    'YouTube cookies let yt-dlp act as your logged-in account.\n\n'
+                    '## 🍪 Export Cookies\n'
+                    'YouTube cookies let yt-dlp act as your logged-in account, bypassing bot checks and age restrictions.\n\n'
                     '1. Install **[Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)** browser extension\n'
                     '2. Open **YouTube** and make sure you are **logged in**\n'
                     '3. Click the extension icon → select **JSON** format → **Export**\n'
-                    '4. Paste the JSON below, or upload the file\n\n'
-                    '---\n\n'
-                    '## 🔑 Step 2 — Get PO Token *(Google Colab users only)*\n'
-                    'Colab runs on Google\'s own datacenter IPs — YouTube blocks these hardest. '
-                    'Cookies alone are **not enough**. You also need a **PO Token**.\n\n'
-                    'On the same YouTube tab, press **F12** → **Console** tab → paste:\n\n'
-                    '```js\n'
-                    'yt.config_.VISITOR_DATA\n'
-                    '```\n'
-                    'Copy the result string → paste it into the **PO Token** field below.\n\n'
-                    '---\n\n'
-                    '## 🗂️ Step 3 — Get Visitor Data *(optional)*\n\n'
-                    'In the same Console, paste:\n\n'
-                    '```js\n'
-                    'yt.config_.INNERTUBE_CONTEXT?.client?.visitorData\n'
-                    '```\n'
-                    'If it returns a string → paste it into **Visitor Data** below.\n'
-                    'If it returns `undefined`, try:\n\n'
-                    '```js\n'
-                    'ytcfg.get("VISITOR_DATA")\n'
-                    '```\n'
-                    'Still `undefined`? → **Leave Visitor Data empty.** PO Token alone is enough.'
+                    '4. Paste the JSON below, or upload the file\n'
                 )
                 with gr.Row():
                     cookies_str = gr.Textbox(
@@ -262,17 +241,6 @@ if __name__ == '__main__':
                     cookies_file = gr.File(
                         label='Upload cookie JSON file',
                         file_types=['.json', '.txt'],
-                    )
-                with gr.Row():
-                    po_token = gr.Textbox(
-                        label='PO Token — run: yt.config_.VISITOR_DATA in YouTube console',
-                        placeholder='Paste result of yt.config_.VISITOR_DATA here…',
-                        lines=1,
-                    )
-                    visitor_data = gr.Textbox(
-                        label='Visitor Data (optional) — run: yt.config_.INNERTUBE_CONTEXT?.client?.visitorData',
-                        placeholder='Paste visitor data here, or leave empty…',
-                        lines=1,
                     )
 
             with gr.Accordion('Voice conversion options', open=False):
@@ -318,7 +286,7 @@ if __name__ == '__main__':
                                inputs=[song_input, rvc_model, pitch, keep_files, is_webui, main_gain, backup_gain,
                                        inst_gain, index_rate, filter_radius, rms_mix_rate, f0_method, crepe_hop_length,
                                        protect, pitch_all, reverb_rm_size, reverb_wet, reverb_dry, reverb_damping,
-                                       output_format, vocal_channels, cookies_str, cookies_file, po_token, visitor_data],
+                                       output_format, vocal_channels, cookies_str, cookies_file],
                                outputs=[ai_cover, ai_backing])
             clear_btn.click(lambda: [0, 0, 0, 0, 0.5, 3, 0.25, 0.33, 'rmvpe', 128, 0, 0.15, 0.2, 0.8, 0.7, 'mp3', 'Stereo', None],
                             outputs=[pitch, main_gain, backup_gain, inst_gain, index_rate, filter_radius, rms_mix_rate,
