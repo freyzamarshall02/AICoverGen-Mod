@@ -299,6 +299,43 @@ def convert_to_stereo(audio_path):
         return audio_path
 
 
+def speed_change(audio_path, factor):
+    """
+    Change the playback speed of an audio file without altering pitch.
+    Uses ffmpeg's atempo filter. Handles factors outside [0.5, 2.0] by
+    chaining multiple atempo filters.
+
+    Args:
+        audio_path (str): Path to the input WAV file.
+        factor (float): Speed multiplier (e.g. 1.0595 for +1 semitone tape speed).
+
+    Returns:
+        str: Path to the speed-changed output WAV file.
+    """
+    suffix = f'_spd{factor:.6f}'
+    output_path = f'{os.path.splitext(audio_path)[0]}{suffix}.wav'
+    if not os.path.exists(output_path):
+        # atempo range is [0.5, 2.0]; chain filters for values outside that range
+        filters = []
+        remaining = factor
+        while remaining > 2.0:
+            filters.append('atempo=2.0')
+            remaining /= 2.0
+        while remaining < 0.5:
+            filters.append('atempo=0.5')
+            remaining /= 0.5
+        filters.append(f'atempo={remaining:.6f}')
+        af = ','.join(filters)
+        cmd = [
+            'ffmpeg', '-y', '-loglevel', 'error',
+            '-i', audio_path,
+            '-af', af,
+            output_path
+        ]
+        subprocess.run(cmd, check=True)
+    return output_path
+
+
 def pitch_shift(audio_path, pitch_change, affect_speed=False):
     """
     Shift the pitch of an audio file by a given number of semitones.
@@ -510,11 +547,13 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
             backup_vocals_path = pitch_shift(backup_vocals_path, pitch_change_all, affect_speed=pitch_change_all_affect_speed)
 
         # When pitch-affects-speed is on, RVC only shifts pitch — not speed.
-        # Apply a tape-style speed stretch to AI vocals so they match the
-        # sped-up instrumental and backup.
+        # Use speed_change() (atempo only) so we don't re-pitch the AI vocals
+        # that were already pitch-shifted by RVC — only the duration is adjusted
+        # to match the tape-sped instrumental.
         if pitch_change_all_affect_speed and pitch_change_all != 0:
-            ai_vocals_mixed_path = pitch_shift(ai_vocals_mixed_path, pitch_change_all, affect_speed=True)
-            ai_backing_mixed_path = pitch_shift(ai_backing_mixed_path, pitch_change_all, affect_speed=True)
+            spd_factor = 2 ** (pitch_change_all / 12)
+            ai_vocals_mixed_path = speed_change(ai_vocals_mixed_path, spd_factor)
+            ai_backing_mixed_path = speed_change(ai_backing_mixed_path, spd_factor)
 
         display_progress('[~] Combining AI Vocals and Instrumentals...', 0.9, is_webui, progress)
         combine_audio([ai_vocals_mixed_path, backup_vocals_path, instrumentals_path], ai_cover_path, main_gain, backup_gain, inst_gain, output_format)
