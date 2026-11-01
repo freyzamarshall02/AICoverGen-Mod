@@ -28,6 +28,7 @@ ffmpeg-python
 # Utilities
 gradio==6.20.0
 yt-dlp[default]
+deno
 gdown
 requests
 tqdm

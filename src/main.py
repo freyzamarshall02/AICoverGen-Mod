@@ -1,8 +1,14 @@
+import os
+try:
+    import deno
+    os.environ["PATH"] = os.path.dirname(deno.find_deno_bin()) + os.pathsep + os.environ["PATH"]
+except ImportError:
+    pass
+
 import argparse
 import gc
 import hashlib
 import json
-import os
 import shlex
 import shutil
 import subprocess
