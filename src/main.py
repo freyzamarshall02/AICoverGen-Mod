@@ -1,4 +1,4 @@
-subimport os
+import os
 try:
     import deno
     os.environ["PATH"] = os.path.dirname(deno.find_deno_bin()) + os.pathsep + os.environ["PATH"]
