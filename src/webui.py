@@ -13,6 +13,7 @@ from download_models import (
     download_roformer_model,
     download_contentvec,
     download_rmvpe,
+    download_fcpe,
 )
 from main import song_cover_pipeline
 
@@ -185,6 +186,7 @@ if __name__ == '__main__':
     download_roformer_model()
     download_contentvec()
     download_rmvpe()
+    download_fcpe()
     print('[+] Base models ready.\n')
 
     voice_models = get_current_models(rvc_models_dir)
